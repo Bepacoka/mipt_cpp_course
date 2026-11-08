@@ -23,6 +23,11 @@ project/CMakeUserPresets.json
 # заготовки, а не копия — иначе правка сценария по умолчанию уезжала бы
 # в репозиторий и приходила конфликтом при обновлении курса.
 .vscode/
+<<<<<<< HEAD
+project/.idea
+=======
+.idea/
+>>>>>>> 6d8d202 (поправил gitignore)
 
 # Собранные колоды: tools/render_lecture.py кладёт HTML, PNG и PDF рядом
 # со slides.md. Файлы производные — версионируется исходник и картинки
@@ -31,4 +36,9 @@ lectures/*/lecture*.html
 lectures/*/lecture*.png
 lectures/*/lecture*.pdf
 lectures/*/slides_export.html
+<<<<<<< HEAD
 lectures/*/slides_export.pdf
+=======
+
+*.zip
+>>>>>>> 6d8d202 (поправил gitignore)
