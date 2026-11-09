@@ -37,12 +37,13 @@ bool ParseArgs(int argc, char** argv, Arguments& args) {
             args.path = argv[++i];
             args.path_set = true;
             args.use_file = true;
-        } else if (!arg.empty()) {
-            std::print(stderr, "неизвестная опция: {}\n", arg);
-            return false;
         } else {
             if (args.path_set) {
-                std::print(stderr, "путь указан несколько раз\n");
+                if (arg[0] != '-') {
+                    std::print(stderr, "путь указан несколько раз\n");
+                } else {
+                    std::print(stderr, "неизвестная опция: {}\n", arg);
+                }
                 return false;
             }
             args.path = arg;

@@ -61,7 +61,7 @@ RuleEngine BuildAgentRules() {
     rules.AddRule(std::move(powershell));
 
     auto autostart_write = std::make_unique<MatchRule>("autostart_write", Severity::kHigh);
-    autostart_write->AddCondition(std::make_unique<EventTypeIs>(std::vector<EventType>{EventType::kFileCreate, EventType::kFileMove}));
+    autostart_write->AddCondition(std::make_unique<EventTypeIs>(std::vector<EventType>{EventType::kFileCreate, EventType::kFileMove, EventType::kFileWrite}));
     auto path_contains_autostart = std::make_unique<AnyOf>();
     path_contains_autostart->Add(std::make_unique<FieldContains>("path", "\\start menu\\programs\\startup\\"));
     path_contains_autostart->Add(std::make_unique<FieldContains>("path", "/start menu/programs/startup/"));
@@ -104,7 +104,9 @@ RuleEngine BuildAgentRules() {
     auto ransomware_mass_write = MakeRule<ThresholdRule<128>>("ransomware_mass_write", Severity::kCritical, 20, 10000, "pid");
     ransomware_mass_write->SetCondition(MakeCondition(AllOfStatic(
                                             EventTypeIs({EventType::kFileWrite, EventType::kFileMove, EventType::kFileCreate}),
-                                            AnyOfStatic(FieldEndsWith("path", ".locked"), FieldEndsWith("to", ".locked"))
+                                            AnyOfStatic(FieldEndsWith("path", ".locked"), FieldEndsWith("to", ".locked")),
+                                            AnyOfStatic(FieldContains("path", "\\Document\\"), FieldContains("to", "\\Document"),
+                                                        FieldContains("path", "\\Desktop\\"), FieldContains("to", "\\Desktop\\"))
                                         )));
     ransomware_mass_write->AddAction("kill_process");
     ransomware_mass_write->AddAction("quarantine_file");

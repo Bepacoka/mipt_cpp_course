@@ -14,20 +14,21 @@ Agent::Agent(bool quiet)
 void Agent::HandleEvent(const Event& event) {
     std::vector<const IRule*> fired;
     engine_.ProcessEvent(event, &fired);
+    if (!fired.empty() && !quiet_) {
+        if (window_.size() >= 2) {
+            std::print("[CTX] -2: ts={} type={} pid={}\n",
+                        window_[window_.size() - 2].ts.ms, window_[window_.size() - 2].type, window_[window_.size() - 2].pid);
+        }
+        if (!window_.empty()) {
+            std::print("[CTX] -1: ts={} type={} pid={}\n",
+                window_.back().ts.ms, window_.back().type, window_.back().pid);
+        }
+    }
     for (const auto& rule : fired) {
         std::print("[DETECT] {}  {}  ts={} pid={}\n",
                        SeverityName(rule->severity()), rule->id(),
                        event.raw_ts(), event.pid());
     }
-    if (!fired.empty()) {
-        if (window_.size() >= 2) {
-            std::print("[CTX] -2: ts={} type={} pid={}\n",
-                        window_[window_.size() - 2].ts.ms, window_[window_.size() - 2].type, window_[window_.size() - 2].pid);
-        }
-        std::print("[CTX] -1: ts={} type={} pid={}\n",
-            window_.back().ts.ms, window_.back().type, window_.back().pid);
-    }
-
     window_.PushBack({event.ts(), event.type(), event.pid()});
     ++total_events_;
     ++counts_[event.type()];
@@ -49,7 +50,7 @@ void Agent::PrintSummary() const {
     if (quiet_) return;
 
     std::print("[STAT] событий всего {}\n", total_events_);
-    std::print("[STAT] пропущенных событий {}\n", skipped_events_); // sorry no cyrillic in tty
+    std::print("[STAT] пропущенных событий {}\n", skipped_events_);
     std::print("[STAT] сломанных событий {} \n", broken_events_);
     for (const auto& [type, count] : counts_) {
         std::print("[STAT] событий типа {} всего {}\n", type, count);

@@ -9,15 +9,18 @@ bool FieldTraits<std::string>::Parse(const std::string& text, std::string *out) 
     return true;
 }
 
-bool FieldTraits<uint64_t>::Parse(const std::string& text, uint64_t *out) {    
+bool FieldTraits<uint64_t>::Parse(const std::string& text, uint64_t *out) {
+    uint64_t old_out = *out; // типа это от меня хотят или что?
     const auto [ptr, ec] = std::from_chars(
         text.data(), text.data() + text.size(), *out
     );
-    return ptr == text.data() + text.size() && ec == std::errc{};
+    bool res = ptr == text.data() + text.size() && ec == std::errc{};
+    if (!res) *out = old_out;
+    return res;
 }
 
 char tolower(char c) {
-    if ('A' <= c && c <= 'Z') return c - ('a' - 'A');
+    if ('A' <= c && c <= 'Z') return c + ('a' - 'A');
     return c;
 }
 
