@@ -77,6 +77,7 @@ class RingBuffer {
     void Clear() {
         full_ = false;
         index_ = 0;
+        buf_ = {};
     }
 
     size_t size() const {
