@@ -16,11 +16,11 @@ void Agent::HandleEvent(const Event& event) {
     engine_.ProcessEvent(event, &fired);
     if (!fired.empty() && !quiet_) {
         if (window_.size() >= 2) {
-            std::print("[CTX] -2: ts={} type={} pid={}\n",
+            std::print("[CTX] -2: {} {} pid={}\n",
                         window_[window_.size() - 2].ts.ms, window_[window_.size() - 2].type, window_[window_.size() - 2].pid);
         }
         if (!window_.empty()) {
-            std::print("[CTX] -1: ts={} type={} pid={}\n",
+            std::print("[CTX] -1: {} {} pid={}\n",
                 window_.back().ts.ms, window_.back().type, window_.back().pid);
         }
     }

@@ -104,8 +104,7 @@ RuleEngine BuildAgentRules() {
     auto ransomware_mass_write = MakeRule<ThresholdRule<128>>("ransomware_mass_write", Severity::kCritical, 20, 10000, "pid");
     ransomware_mass_write->SetCondition(MakeCondition(AllOfStatic(
                                             EventTypeIs({EventType::kFileWrite, EventType::kFileMove, EventType::kFileCreate}),
-                                            AnyOfStatic(FieldEndsWith("path", ".locked"), FieldEndsWith("to", ".locked")),
-                                            AnyOfStatic(FieldContains("path", "\\Document\\"), FieldContains("to", "\\Document"),
+                                            AnyOfStatic(FieldContains("path", "\\Documents\\"), FieldContains("to", "\\Documents\\"),
                                                         FieldContains("path", "\\Desktop\\"), FieldContains("to", "\\Desktop\\"))
                                         )));
     ransomware_mass_write->AddAction("kill_process");

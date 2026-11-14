@@ -16,11 +16,9 @@ FileSource::FileSource(const std::string& path) : path_(path), log_(path) {
 
 void FileSource::Run(IEventHandler* agent) {
     std::string line;
-    std::size_t line_number = 0;
 
     while (std::getline(log_, line)) {
         try {
-            ++line_number;
             if (IsBlankOrComment(line)) {
                 agent->OnSkipped();
                 continue;
