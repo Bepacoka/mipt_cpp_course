@@ -6,7 +6,7 @@
 
 namespace nano_edr {
 
-RuleEngine BuildAgentRules() {
+RuleEngine BuildAgentRules(const EntityModel* model) {
     RuleEngine rules;
     auto script_host = std::make_unique<MatchRule>("script_host_from_temp", Severity::kHigh);
     
@@ -110,6 +110,34 @@ RuleEngine BuildAgentRules() {
     ransomware_mass_write->AddAction("kill_process");
     ransomware_mass_write->AddAction("quarantine_file");
     rules.AddRule(std::move(ransomware_mass_write));
+
+    auto shell = MakeRule<SequenceRule>("shell_spawns_script_host",
+                                    Severity::kHigh, 30000);
+    shell->SetFirst(MakeCondition(AllOfStatic(
+                                    EventTypeIs({EventType::kProcessStart}),
+                                    AnyOfStatic(FieldEndsWith("image", "cmd.exe"), FieldEndsWith("image", "powershell.exe"), FieldEndsWith("image", "pwsh.exe"))
+                                  )));
+    shell->SetSecond(MakeCondition(AllOfStatic(
+                                     EventTypeIs({EventType::kProcessStart}),
+                                     AnyOfStatic(FieldEndsWith("image", "wscript.exe"), FieldEndsWith("image", "cscript.exe"))
+                                   )));
+    shell->set_child_of_prev(true);
+    shell->SetModel(model);
+    shell->AddAction("kill_process");
+    rules.AddRule(std::move(shell));
+
+    auto dropped = MakeRule<LambdaRule>(
+    "spawned_from_dropped_file", Severity::kHigh,
+    [model](const Event& event) {
+        if (event.event_type() != EventType::kProcessStart) {
+            return false;
+        }
+        const FileRecord* source = model->FindSpawnSource(event.pid());
+        return source != nullptr && !source->writer_pid.empty() && source->writer_pid != event.pid();
+    });
+    dropped->AddAction("kill_process");
+    dropped->AddAction("quarantine_file");
+    rules.AddRule(std::move(dropped));
     return rules;
 }
 

@@ -34,12 +34,23 @@ void SequenceRule::SetFirst(std::unique_ptr<ICondition> first) {
 void SequenceRule::SetSecond(std::unique_ptr<ICondition> second) {
     second_ = std::move(second);
 }
+
+bool SequenceRule::Linked(const Pending& first, const Event& second) const {
+    if (child_of_prev_) {
+        if (!model_) return false;
+        auto rec = model_->FindProcess(second.pid());
+        return rec && rec->ppid == first.pid;
+    }
+    if (same_pid_) return first.pid == second.pid();
+    return true;
+}
+
 bool SequenceRule::Check(const Event& event) {
     if (!first_ || !second_) return false;
     while (!pending_.empty() && event.ts().ms - pending_[0].ts_ms > window_ms_) pending_.erase(pending_.begin()); // world if std::deque
     if (second_->Matches(event)) {
         for (auto it = pending_.begin(); it != pending_.end(); ++it) {
-            if (!same_pid_ || it->pid == event.pid()) {
+            if (Linked(*it, event)) {
                 pending_.erase(it);
                 CountHit();
                 return true;
@@ -48,6 +59,17 @@ bool SequenceRule::Check(const Event& event) {
     }
     if (first_->Matches(event)) {
         pending_.push_back({event.ts().ms, event.pid()});
+    }
+    return false;
+}
+
+
+LambdaRule::LambdaRule(const std::string &id, Severity severity, Predicate predicate) : RuleBase(id, severity), predicate_(predicate) {}
+bool LambdaRule::Check(const Event& event) {
+    if (!predicate_) return false;
+    if (predicate_(event)) {
+        CountHit();
+        return true;
     }
     return false;
 }

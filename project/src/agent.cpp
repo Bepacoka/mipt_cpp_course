@@ -1,34 +1,23 @@
 #include "agent.h"
 
 #include "agent_rules.h"
-#include "rules.h"
+#include "dedup_sink.h"
 
 #include <format>
 #include <print>
 
 namespace nano_edr {
 
-Agent::Agent(bool quiet)
-    : window_(), engine_(BuildAgentRules()), quiet_(quiet) {}
+Agent::Agent(bool quiet, uint64_t dedup_period_ms)
+    : window_(), engine_(BuildAgentRules(&model_)), quiet_(quiet), dedup_period_ms_(dedup_period_ms) {
+        engine_.SetModel(&model_);
+    }
 
 void Agent::HandleEvent(const Event& event) {
-    std::vector<const IRule*> fired;
+    model_.Observe(event);
+    ctx_printed_ = false;
+    std::vector<const IRule*> fired; // ...а зачем он нам теперь?
     engine_.ProcessEvent(event, &fired);
-    if (!fired.empty() && !quiet_) {
-        if (window_.size() >= 2) {
-            std::print("[CTX] -2: {} {} pid={}\n",
-                        window_[window_.size() - 2].ts.ms, window_[window_.size() - 2].type, window_[window_.size() - 2].pid);
-        }
-        if (!window_.empty()) {
-            std::print("[CTX] -1: {} {} pid={}\n",
-                window_.back().ts.ms, window_.back().type, window_.back().pid);
-        }
-    }
-    for (const auto& rule : fired) {
-        std::print("[DETECT] {}  {}  ts={} pid={}\n",
-                       SeverityName(rule->severity()), rule->id(),
-                       event.raw_ts(), event.pid());
-    }
     window_.PushBack({event.ts(), event.type(), event.pid()});
     ++total_events_;
     ++counts_[event.type()];
@@ -61,6 +50,10 @@ void Agent::PrintSummary() const {
         std::print("  {}  {}\n", engine_.rule(i).id(), engine_.rule(i).hits());
     }
     std::print("[STAT] в окне занято {} из 256 мест\n", window_.size()); // зачем, ну ладно
+    std::print("[STAT] в модели проццессов {}, файлов {}", model_.process_count(), model_.file_count());
+    if (suppressed_ > 0) {
+        std::print("[STAT] подавленных дубликатов: {} (срок {} мс)", suppressed_, dedup_period_ms_);
+    }
 }
 
 void Agent::Warn(const std::string& message) const noexcept {
@@ -70,6 +63,26 @@ void Agent::Warn(const std::string& message) const noexcept {
         std::print(stderr, "[WARN] {}\n", message);
     } catch (...) {
     }
+}
+
+void Agent::PrintContextOnce() {    
+    if (quiet_ || ctx_printed_) return;
+    if (window_.size() >= 2) {
+        std::print("[CTX] -2: {} {} pid={}\n",
+                   window_[window_.size() - 2].ts.ms, window_[window_.size() - 2].type, window_[window_.size() - 2].pid);
+    }
+    if (!window_.empty()) {
+        std::print("[CTX] -1: {} {} pid={}\n",
+            window_.back().ts.ms, window_.back().type, window_.back().pid);
+    }
+    ctx_printed_ = true;
+}
+
+void Agent::Subscribe(AlertSink sink) {
+    FanOutSink all;
+    all.Add([this](const Detection&) { PrintContextOnce(); });
+    all.Add(std::move(sink));
+    engine_.Subscribe(DedupSink(std::move(all), dedup_period_ms_, &suppressed_));
 }
 
 }  // namespace nano_edr

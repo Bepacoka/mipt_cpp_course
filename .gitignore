@@ -13,6 +13,9 @@ project/scenarios/*.report.txt
 # секции [edr] сценария. Тоже результат запуска.
 project/scenarios/*.detections.txt
 
+# тестовые сценарии не думаю что должны попадать в репу
+project/scenarios/test*
+
 # Личный файл пресетов, если кто-то его себе завёл: CMake читает его рядом
 # с CMakePresets.json, а версионировать чужие локальные настройки незачем.
 project/CMakeUserPresets.json
