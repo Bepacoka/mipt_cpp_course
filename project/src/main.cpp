@@ -1,58 +1,85 @@
-// Каркас агента: читает журнал событий построчно и считает строки.
-//
-// Это заготовка занятия 1.1, а не решение. Детектов она не ищет — их вы
-// добавите здесь же, в отмеченном месте ниже. Формат строки детекта, список
-// признаков и правило про их порядок заданы в постановке занятия: по ним
-// сравниваются эталоны.
-//
-// Весь код лежит в main, и на этом занятии так и надо: функции появятся
-// на занятии 1.2, ссылки — на 1.3. Разбор аргументов, коды возврата и флаг
-// --quiet — часть задания.
-//
-// Запуск:
-//   nano-edr <журнал.log>
+#include "agent.h"
+#include "file_source.h"
+#include "os_source.h"
+
+#include <charconv>
+#include <cstddef>
 #include <cstdio>
-#include <fstream>
+#include <exception>
 #include <print>
 #include <string>
+#include <system_error>
+
+namespace {
+
+struct Arguments {
+    bool quiet = false;
+    bool use_file = false;
+    bool path_set = false;
+    std::string path;
+};
+
+bool ParseArgs(int argc, char** argv, Arguments& args) {
+    for (int i = 1; i < argc; ++i) {
+        const std::string arg = argv[i];
+
+        if (arg == "--quiet") {
+            args.quiet = true;
+        } else if (arg == "--file") {
+            if (args.path_set) {
+                std::print(stderr, "путь указан несколько раз\n");
+                return false;
+            }
+            if (i + 1 >= argc) {
+                std::print(stderr, "после --file требуется путь к журналу\n");
+                return false;
+            }
+            args.path = argv[++i];
+            args.path_set = true;
+            args.use_file = true;
+        } else {
+            if (args.path_set) {
+                if (arg[0] != '-') {
+                    std::print(stderr, "путь указан несколько раз\n");
+                } else {
+                    std::print(stderr, "неизвестная опция: {}\n", arg);
+                }
+                return false;
+            }
+            args.path = arg;
+            args.path_set = true;
+        }
+    }
+
+    if (!args.path_set || args.path.empty()) {
+        std::print(stderr,
+                   "использование: nano-edr [--quiet] <сценарий>\n"
+                   "или: nano-edr [--quiet] --file <журнал>\n");
+        return false;
+    }
+
+    return true;
+}
+
+}  // namespace
 
 int main(int argc, char** argv) {
-    // Аргументы разбираются грубо: путь к журналу и ничего больше. Остальное,
-    // включая --quiet, добавляется по заданию.
-    if (argc < 2) {
-        std::print(stderr, "использование: nano-edr <журнал.log>\n");
-        return 2;
-    }
+    Arguments args;
+    if (!ParseArgs(argc, argv, args)) return 2;
 
-    std::ifstream log(argv[1]);
-    if (!log) {
-        std::print(stderr, "не удалось открыть журнал: {}\n", argv[1]);
-        return 2;
-    }
-
-    long long lines = 0;
-    long long comments = 0;
-    std::string line;
-
-    while (std::getline(log, line)) {
-        // Счётчик увеличивается до всех проверок: он считает строки файла,
-        // а не события. Номер, посчитанный по событиям, бесполезен — по нему
-        // нельзя открыть файл и посмотреть.
-        ++lines;
-
-        // Строки-комментарии в журнале начинаются с '#'. Они не события,
-        // и детекта по ним быть не должно.
-        if (!line.empty() && line[0] == '#') {
-            ++comments;
-            continue;
+    try {
+        nano_edr::Agent agent(args.quiet);
+        std::unique_ptr<nano_edr::IEventSource> source;
+        if (args.use_file) {
+            source = std::make_unique<nano_edr::FileSource>(args.path);
+        } else {
+            source = std::make_unique<nano_edr::OsSource>(args.path);
         }
-
-        // >>> Здесь начинается занятие 1.1.
-        //
-        // Проверка признаков и печать детекта. Номер строки, который нужен
-        // в выводе, — это lines.
+        source->Run(&agent);
+        agent.PrintSummary();
+        return 0;
+    } catch (const std::exception& error) {
+        std::print(stderr, "произошла ошибка: {}\n", error.what());
+        return 1;
     }
-
-    std::print("строк {}, из них комментариев {}\n", lines, comments);
-    return 0;
 }
