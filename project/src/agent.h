@@ -20,7 +20,7 @@ class Agent : public IEventHandler {
         std::string pid;
     };
     
-    Agent(bool quiet);
+    Agent(bool, uint64_t);
 
     void HandleEvent(const Event& event) override;
     void OnSkipped() override;
@@ -28,14 +28,20 @@ class Agent : public IEventHandler {
     void OnTick() override;
     void PrintSummary() const;
     void Warn(const std::string& message) const noexcept;
+    void PrintContextOnce();
+    void Subscribe(AlertSink);
 
   private:
     RingBuffer<EventRecord, 256> window_;
+    EntityModel model_;
     RuleEngine engine_;
     bool quiet_;
-    std::size_t total_events_ = 0;
-    std::size_t skipped_events_ = 0;
-    std::size_t broken_events_ = 0;
+    bool ctx_printed_ = false;
+    size_t total_events_ = 0;
+    size_t skipped_events_ = 0;
+    size_t broken_events_ = 0;
+    size_t suppressed_ = 0;
+    uint64_t dedup_period_ms_ = 0;
     std::map<std::string, std::size_t> counts_;
 };
 

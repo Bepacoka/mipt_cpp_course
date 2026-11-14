@@ -1,4 +1,6 @@
 #include "agent.h"
+#include "edr_handle.h"
+#include "field_traits.h"
 #include "file_source.h"
 #include "os_source.h"
 
@@ -16,7 +18,9 @@ struct Arguments {
     bool quiet = false;
     bool use_file = false;
     bool path_set = false;
+    bool out_set = false;
     std::string path;
+    std::string out;
 };
 
 bool ParseArgs(int argc, char** argv, Arguments& args) {
@@ -37,6 +41,17 @@ bool ParseArgs(int argc, char** argv, Arguments& args) {
             args.path = argv[++i];
             args.path_set = true;
             args.use_file = true;
+        } else if (arg == "--out") {
+            if (args.out_set) {
+                std::print(stderr, "вывод указан несколько раз\n");
+                return false;
+            }
+            if (i + 1 >= argc) {
+                std::print(stderr, "после --out требуется путь к файлу вывода\n");
+                return false;
+            }
+            args.out = argv[++i];
+            args.out_set = true;
         } else {
             if (args.path_set) {
                 if (arg[0] != '-') {
@@ -53,8 +68,8 @@ bool ParseArgs(int argc, char** argv, Arguments& args) {
 
     if (!args.path_set || args.path.empty()) {
         std::print(stderr,
-                   "использование: nano-edr [--quiet] <сценарий>\n"
-                   "или: nano-edr [--quiet] --file <журнал>\n");
+                   "использование: nano-edr [--out <файл вывода>] [--quiet] <сценарий>\n"
+                   "или: nano-edr [--out <файл вывода>] [--quiet] --file <журнал>\n");
         return false;
     }
 
@@ -68,14 +83,31 @@ int main(int argc, char** argv) {
     if (!ParseArgs(argc, argv, args)) return 2;
 
     try {
-        nano_edr::Agent agent(args.quiet);
+        nano_edr::EdrHandle edr(args.path);
+        const std::string text = edr.Config("dedup_period_ms", "10000");
+        uint64_t dedup_period_ms = 0;
+        if (!nano_edr::FieldTraits<uint64_t>::Parse(text, &dedup_period_ms)) {
+            std::print(stderr, "[WARN] dedup_period_ms невозможно распарсить: {}\n", text);
+            dedup_period_ms = 10000;
+        }
+        nano_edr::Agent agent(args.quiet, dedup_period_ms);
         std::unique_ptr<nano_edr::IEventSource> source;
         if (args.use_file) {
             source = std::make_unique<nano_edr::FileSource>(args.path);
         } else {
             source = std::make_unique<nano_edr::OsSource>(args.path);
         }
+        nano_edr::FanOutSink targets;
+        targets.Add(nano_edr::ConsoleSink());
+        targets.Add(nano_edr::EdrSink(&edr));
+        if (args.out_set) {
+            targets.Add(nano_edr::FileSink(args.out));
+        }
+        agent.Subscribe(std::move(targets));
         source->Run(&agent);
+        if (edr.Flush() != EDR_OK) {
+            std::print(stderr, "[WARN] детекты не отправлены"); // а он типа не под --quiet?
+        }
         agent.PrintSummary();
         return 0;
     } catch (const std::exception& error) {
